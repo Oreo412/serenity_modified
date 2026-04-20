@@ -172,7 +172,7 @@ make_specific_collector!(
 make_specific_collector!(
     ModalInteractionCollector, ModalInteraction,
     Event::InteractionCreate(InteractionCreateEvent {
-        interaction: Interaction::Modal(interaction),
+        interaction: Interaction::Modal(interaction, _),
     }) => interaction,
     author_id: UserId => interaction.user.id == *author_id,
     channel_id: ChannelId => interaction.channel_id == *channel_id,

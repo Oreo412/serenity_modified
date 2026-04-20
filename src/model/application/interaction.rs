@@ -2,10 +2,7 @@ use serde::de::{Deserialize, Deserializer, Error as DeError};
 use serde::ser::{Serialize, Serializer};
 
 use super::{
-    CommandInteraction,
-    ComponentInteraction,
-    InstallationContext,
-    ModalInteraction,
+    CommandInteraction, ComponentInteraction, InstallationContext, ModalInteraction,
     PingInteraction,
 };
 use crate::internal::prelude::*;
@@ -28,7 +25,7 @@ pub enum Interaction {
     Command(CommandInteraction),
     Autocomplete(CommandInteraction),
     Component(ComponentInteraction),
-    Modal(ModalInteraction),
+    Modal(ModalInteraction, Value),
 }
 
 impl Interaction {
@@ -39,7 +36,7 @@ impl Interaction {
             Self::Ping(i) => i.id,
             Self::Command(i) | Self::Autocomplete(i) => i.id,
             Self::Component(i) => i.id,
-            Self::Modal(i) => i.id,
+            Self::Modal(i, _) => i.id,
         }
     }
 
@@ -51,7 +48,7 @@ impl Interaction {
             Self::Command(_) => InteractionType::Command,
             Self::Component(_) => InteractionType::Component,
             Self::Autocomplete(_) => InteractionType::Autocomplete,
-            Self::Modal(_) => InteractionType::Modal,
+            Self::Modal(_, _) => InteractionType::Modal,
         }
     }
 
@@ -62,7 +59,7 @@ impl Interaction {
             Self::Ping(_) => None,
             Self::Command(i) | Self::Autocomplete(i) => i.app_permissions,
             Self::Component(i) => i.app_permissions,
-            Self::Modal(i) => i.app_permissions,
+            Self::Modal(i, _) => i.app_permissions,
         }
     }
 
@@ -73,7 +70,7 @@ impl Interaction {
             Self::Ping(_) => None,
             Self::Command(i) | Self::Autocomplete(i) => i.guild_id,
             Self::Component(i) => i.guild_id,
-            Self::Modal(i) => i.guild_id,
+            Self::Modal(i, _) => i.guild_id,
         }
     }
 
@@ -84,7 +81,7 @@ impl Interaction {
             Self::Ping(i) => i.application_id,
             Self::Command(i) | Self::Autocomplete(i) => i.application_id,
             Self::Component(i) => i.application_id,
-            Self::Modal(i) => i.application_id,
+            Self::Modal(i, _) => i.application_id,
         }
     }
 
@@ -95,7 +92,7 @@ impl Interaction {
             Self::Ping(i) => i.token.as_str(),
             Self::Command(i) | Self::Autocomplete(i) => i.token.as_str(),
             Self::Component(i) => i.token.as_str(),
-            Self::Modal(i) => i.token.as_str(),
+            Self::Modal(i, _) => i.token.as_str(),
         }
     }
 
@@ -106,7 +103,7 @@ impl Interaction {
             Self::Ping(_) => None,
             Self::Command(i) | Self::Autocomplete(i) => i.guild_locale.as_deref(),
             Self::Component(i) => i.guild_locale.as_deref(),
-            Self::Modal(i) => i.guild_locale.as_deref(),
+            Self::Modal(i, _) => i.guild_locale.as_deref(),
         }
     }
 
@@ -117,7 +114,7 @@ impl Interaction {
             Self::Ping(_) => None,
             Self::Command(i) | Self::Autocomplete(i) => Some(&i.entitlements),
             Self::Component(i) => Some(&i.entitlements),
-            Self::Modal(i) => Some(&i.entitlements),
+            Self::Modal(i, _) => Some(&i.entitlements),
         }
     }
 
@@ -221,7 +218,7 @@ impl Interaction {
     #[must_use]
     pub fn modal_submit(self) -> Option<ModalInteraction> {
         match self {
-            Self::Modal(i) => Some(i),
+            Self::Modal(i, _) => Some(i),
             _ => None,
         }
     }
@@ -230,7 +227,7 @@ impl Interaction {
     #[must_use]
     pub fn as_modal_submit(&self) -> Option<&ModalInteraction> {
         match self {
-            Self::Modal(i) => Some(i),
+            Self::Modal(i, _) => Some(i),
             _ => None,
         }
     }
@@ -254,7 +251,10 @@ impl<'de> Deserialize<'de> for Interaction {
             InteractionType::Command => from_value(value).map(Interaction::Command),
             InteractionType::Component => from_value(value).map(Interaction::Component),
             InteractionType::Autocomplete => from_value(value).map(Interaction::Autocomplete),
-            InteractionType::Modal => from_value(value).map(Interaction::Modal),
+            InteractionType::Modal => {
+                let modal: ModalInteraction = from_value(value.clone()).map_err(DeError::custom)?;
+                Ok(Interaction::Modal(modal, value))
+            },
             InteractionType::Ping => from_value(value).map(Interaction::Ping),
             InteractionType::Unknown(_) => return Err(DeError::custom("Unknown interaction type")),
         }
@@ -268,7 +268,7 @@ impl Serialize for Interaction {
             Self::Ping(i) => i.serialize(serializer),
             Self::Command(i) | Self::Autocomplete(i) => i.serialize(serializer),
             Self::Component(i) => i.serialize(serializer),
-            Self::Modal(i) => i.serialize(serializer),
+            Self::Modal(i, _) => i.serialize(serializer),
         }
     }
 }
@@ -522,10 +522,7 @@ impl serde::Serialize for MessageInteractionMetadata {
             val: T,
             kind: InteractionType,
         ) -> StdResult<S::Ok, S::Error> {
-            let wrapper = WithType {
-                kind,
-                val,
-            };
+            let wrapper = WithType { kind, val };
 
             wrapper.serialize(serializer)
         }
